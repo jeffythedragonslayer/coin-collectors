@@ -1,0 +1,433 @@
+Rem Project: Coin Collectors
+Rem Created: 12/23/2006 1:53:05 PM
+
+Rem ***** Main Source File *****
+
+sync on
+sync rate 60
+autocam off
+
+hide mouse
+randomize timer()
+
+type snowspot
+  x as dword
+  y as dword
+  speed as dword
+endtype
+
+make_player()
+make_grass()
+make_ground()
+make_snow()
+make_rock()
+make_rocks()
+make_tree()
+load image "smiley.png", 3
+make_coins()
+make_snowflakes()
+process_player()
+
+position camera 1200, 400, 700
+
+global go as boolean
+global smooth as dword
+global score as integer
+global time as double integer
+global lockcontrols as boolean
+lockcontrols = 1
+
+set text size 32
+set text font "Lucida Console"
+set text to bold
+ink rgb(0, 0, 255), 0
+
+smooth = 100
+
+do
+
+  if go
+    process_inventory()
+    process_player()
+    process_hud()
+    color = (time - timer())/235
+  else
+    process_instructions()
+    color = 255
+  endif
+  process_coins()
+  process_camera()
+  process_snowflakes()
+
+  color backdrop rgb(color, color, color)
+
+  sync
+loop
+
+function process_snowflakes()
+  ink -1, 0
+  for t = 0 to 20
+    x = snowflakes(t).x
+    y = snowflakes(t).y
+    box x, y, x+8, y+8
+    inc y, snowflakes(t).speed
+    if lockcontrols = 0 then inc x, (leftkey() - rightkey()) * snowflakes(t).speed
+    if y > screen height()
+      x = rnd(screen width())
+      y = 10
+    endif
+    snowflakes(t).x = x
+    snowflakes(t).y = y
+  next t
+  ink rgb(0, 0, 255), 0
+
+endfunction
+
+function process_instructions()
+  center text screen width()/2, screen height()/2-60, "Use the arrowkeys to collect"
+  center text screen width()/2, screen height()/2-30, "goodness coins for Santa."
+  center text screen width()/2, screen height()/2, "The more coins you collect,"
+  center text screen width()/2, screen height()/2+30, "the more presents Santa gives you!"
+  center text screen width()/2, screen height()/2+60, "Press enter to start."
+  if returnkey()
+    make_inventory()
+    go = 1
+    time = timer() + 60*1000
+    smooth = 25
+    lockcontrols = 0
+  endif
+endfunction
+
+function process_hud()
+  rotate sprite 1, sin(timer()/5)*10
+  text sprite width(1) + 10, sprite height(1)/3,  "x " + str$(score)
+
+  text screen width() - text width("Time: " + str$((time - timer())/1000)) - 10, 20,  "Time: " + str$((time - timer())/1000)
+  if time - timer() < 0
+    make_presents()
+  endif
+
+  text 0, screen height() - 30, "FPS: " + str$(screen fps())
+
+endfunction
+
+function make_presents()
+  local present as integer
+  clear_inventory()
+  dim presents() as dword
+  present = (score / 2) + 3
+  if present < 10
+    make_coal()
+    bad = 20 - present
+    present = bad
+    p$ = "lump"
+    c$ = " of coal"
+  else
+    make_paper()
+    p$ = "present"
+  endif
+  delaytime = 50
+  ink rgb(0, 0, 255), 0
+  color backdrop -1
+  lockcontrols = 1
+  do
+    for t = 1 to 360
+      set camera to follow 500, 0, 500, t, 200 + p*9, 75, 50, 0
+      point camera 500, 0, 500
+      process_coins()
+      process_snowflakes()
+      dec delay
+      if p < present and delay <= 0
+        delay = delaytime
+        dec delaytime
+        array insert at bottom presents()
+        if bad > 0
+          presents() = make_obj_sphere(20)
+          texture object presents(), 4
+        else
+          presents() = make_obj_cube(20)
+          texture object presents(), 4+rnd(2)
+        endif
+        x = newxvalue(500, wrapvalue(t+130), 40 + p*8)
+        z = newzvalue(500, wrapvalue(t+130), 40 + p*8)
+        position object presents(), x, get ground height(1, x, z) + object size y(presents())/4, z
+        inc p
+      endif
+      if p > 1 then s$ = "s"
+      center text screen width()/2, text height("Y"), "You got " + str$(p) + " " + p$ + s$ + c$ + " for Christmas!"
+      sync
+    next t
+  loop
+endfunction
+
+function make_coal()
+
+  ink 0, 0
+  box 0, 0, 4, 4
+  get image 4, 0, 0, 4, 4, 1
+
+endfunction
+
+function make_paper()
+
+  `paper 1
+  ink rgb(255, 0, 0), 0
+  box 0, 0, 32, 32
+
+  ink rgb(0, 255, 0), 0
+
+  s = 3
+  for t = 1 to 10
+    x = rnd(32-s)
+    y = rnd(32-s)
+    circle x, y, s
+  next t
+
+  get image 4, 0, 0, 32, 32, 1
+
+  `paper 2
+  ink rgb(0, 0, 255), 0
+  box 0, 0, 32, 32
+
+  ink rgb(255, 0, 255), 0
+
+  s = 3
+  for t = 1 to 10
+    x = rnd(32-s)
+    y = rnd(32-s)
+    circle x, y, s
+  next t
+
+  get image 5, 0, 0, 32, 32, 1
+
+  `paper 3
+  ink rgb(255, 255, 0), 0
+  box 0, 0, 32, 32
+
+  ink rgb(0, 255, 0), 0
+
+  s = 3
+  for t = 1 to 10
+    x = rnd(32-s)
+    y = rnd(32-s)
+    circle x, y, s
+  next t
+
+  get image 6, 0, 0, 32, 32, 1
+
+endfunction
+
+function clear_inventory()
+  inc score, array count(inventory(0))
+  for t = 0 to array count(inventory(0))
+    delete sprite inventory(t)
+  next t
+  delete sprite 1
+endfunction
+
+function process_inventory()
+  for t = 0 to array count(inventory(0))
+    sprite inventory(t), sprite x(inventory(t)) - 18, sprite y(inventory(t)) - 18, 3
+    if sprite x(inventory(t)) < 0 and sprite y(inventory(t)) < 0
+      inc score
+      delete sprite inventory(t)
+      array delete element inventory(0), t
+    endif
+  next t
+endfunction
+
+function make_inventory()
+  dim inventory() as dword
+  sprite 1, 32, 32, 3
+  offset sprite 1, 32, 32
+endfunction
+
+function process_coins()
+  for t = 0 to array count(coins(0))
+    if object visible(coins(t))
+      turn object right coins(t), 3
+      if object collision(player(0), coins(t))
+        array insert at bottom inventory(0)
+        inventory() = make_spr(object screen x(coins(t)), object screen y(coins(t)), 3)
+        exclude object on coins(t)
+      endif
+    endif
+  next t
+endfunction
+
+function process_camera()
+  set camera to follow object position x(player(0)), object position y(player(0)), object position z(player(0)), object angle y(player(0)), 50, 20, smooth, 0
+endfunction
+
+function process_player()
+  move object player(0), (upkey() - downkey())*50
+  YRotate Object player(0),Object Angle Y(player(0))+(RightKey()-LeftKey())*1.5
+  x# = object position x(player(0))
+  z# = object position z(player(0))
+  if x# < 20 then x# = 20
+  if x# > 980 then x# = 980
+  if z# < 20 then z# = 20
+  if z# > 980 then z# = 980
+  position object player(0), x#, get ground height(1, x#, z#) + object size y(player(0)) / 2, z#
+endfunction
+
+function make_player()
+  dim player(0) as dword
+  player(0) = make_obj_sphere(5)
+  color object player(0), rgb(0, 0, 255)
+  position object player(0), 250, 0, 250
+endfunction
+
+function make_ground()
+  make matrix 1, 1000, 1000, 50, 50
+  randomize matrix 1, 12.5
+
+  for t = 0 to 50
+    set matrix height 1, t, 0, 40
+    set matrix height 1, 0, t, 40
+    set matrix height 1, t, 50, 40
+    set matrix height 1, 50, t, 40
+  next t
+
+  prepare matrix texture 1, 1, 1, 1
+  update matrix 1
+endfunction
+
+function make_snowflakes()
+  dim snowflakes(20) as snowspot
+  for t = 0 to 20
+    snowflakes(t).x = rnd(screen width())
+    snowflakes(t).y = rnd(screen height())
+    snowflakes(t).speed = rnd(3) + 3
+  next t
+endfunction
+
+function make_snow()
+  dim snow(0) as dword
+  snow(0) = make_obj_plain(1000)
+  position object snow(0), 500, 4, 500
+  xrotate object snow(0), 270
+  color object snow(0), -1
+endfunction
+
+function make_grass()
+
+  ink rgb(0, 255, 0), 0
+  box 0, 0, 32, 32
+
+  ink rgb(0, 128, 0), 0
+
+  s = 3
+  for t = 1 to 40
+    x = rnd(32-s)
+    y = rnd(32-s)
+    box x, y, x+s, y+s
+  next t
+
+  get image 1, 0, 0, 32, 32, 1
+
+endfunction
+
+function make_rocks()
+
+  r = 100
+  dim rocks(r-1) as dword
+
+  for t = 0 to r-1
+    rocks(t) = make_obj_cube(4)
+    texture object rocks(t), 2
+    rotate object rocks(t), rnd(360), rnd(360), rnd(360)
+    x = rnd(960)+20
+    z = rnd(960)+20
+    position object rocks(t), x, get ground height(1, x, z) - object size y(rocks(t)) / 4, z
+  next t
+
+endfunction
+
+function make_obj_cube(size as dword)
+  id = free_obj()
+  make object cube id, size
+endfunction id
+
+function free_obj()
+  repeat
+    inc id
+  until object exist(id) = 0
+endfunction id
+
+function make_spr(x as dword, y as dword, img as dword)
+  id = free_spr()
+  sprite id, x, y, img
+endfunction id
+
+function free_spr()
+  repeat
+    inc id
+  until sprite exist(id) = 0
+endfunction id
+
+function make_obj_plain(size as dword)
+  id = free_obj()
+  make object plain id, size, size
+endfunction id
+
+function make_obj_cylinder(size as dword)
+  id = free_obj()
+  make object cylinder id, size
+endfunction id
+
+function make_obj_cone(size as dword)
+  id = free_obj()
+  make object cone id, size
+endfunction id
+
+function make_obj_sphere(size as dword)
+  id = free_obj()
+  make object sphere id, size
+endfunction id
+
+function make_rock()
+
+  ink rgb(128, 128, 128), 0
+  box 0, 0, 32, 32
+
+  ink rgb(100, 100, 120), 0
+
+  s = 4
+  for t = 1 to 50
+    x = rnd(32-s)
+    y = rnd(32-s)
+    box x, y, x+s, y+s
+  next t
+
+  get image 2, 0, 0, 32, 32, 1
+endfunction
+
+function make_coins()
+
+  c = 10000
+  dim coins(c-1) as dword
+
+  for t = 0 to c-1
+    coins(t) = make_obj_plain(7)
+    texture object coins(t), 3
+    set object transparency coins(t), 1
+    x = rnd(960)+20
+    z = rnd(960)+20
+    position object coins(t), x, get ground height(1, x, z) + object size y(coins(t))/2, z
+  next t
+
+endfunction
+
+function make_tree()
+  dim tree(3) as dword
+  for t = 1 to 3
+    tree(t) = make_obj_cone(50*(5-t))
+    scale object tree(t), 100, 75, 100
+    color object tree(t), rgb(0, 255, 0)
+    position object tree(t), 500, 75 + t*39, 500
+  next t
+  tree(0) = make_obj_cylinder(50)
+  color object tree(0), rgb(128, 64, 0)
+  position object tree(0), 500, 25, 500
+endfunction
